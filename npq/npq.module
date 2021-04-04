@@ -1,0 +1,57 @@
+<?php
+
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Queue\QueueFactory;
+use Drupal\Core\Queue\QueueInterface;
+
+/**
+ * Implements hook_entity_insert().
+ */
+function npq_entity_insert(EntityInterface $entity) {
+  if ($entity->getEntityTypeId() !== 'node') {
+    return;
+  }
+
+  if ($entity->isPublished()) {
+    return;
+  }
+
+  /** @var QueueFactory $queue_factory */
+  $queue_factory = \Drupal::service('queue');
+  /** @var QueueInterface $queue */
+  $queue = $queue_factory->get('cron_node_publisher');
+  $item = new \stdClass();
+  $item->nid = $entity->id();
+  $queue->createItem($item);
+}
+// function npq_cron(){
+//   $last_run_per_5_minuts = \Drupal::state()->get('npq.last_run_5_minuts', 0);
+
+//   // If 5 minutes passed since last time.
+//   if ((REQUEST_TIME - $last_run_per_5_minuts) > 300) {
+
+//       \Drupal::logger('npq')->info("Runnning Cron every 5 minut log");
+
+
+//       // Update last run.
+//       \Drupal::state()->set('npq.last_run_5_minuts', REQUEST_TIME);
+
+//   }
+
+  function npq_form_system_cron_settings_alter(&$form, &$form_state) {
+    $automated_cron_settings = \Drupal::config('automated_cron.settings');
+  
+    $options = [300,600,3600, 10800, 21600, 43200, 86400, 604800];
+    $form['cron']['interval'] = [
+      '#type' => 'select',
+      '#title' => t('Run cron every'),
+      '#description' => t('More information about setting up scheduled tasks can be found by <a href=":url">reading the cron tutorial on drupal.org</a>.', [':url' => 'https://www.drupal.org/docs/8/administering-a-drupal-8-site/cron-automated-tasks']),
+      '#default_value' => $automated_cron_settings->get('interval'),
+      '#options' => [0 => t('Never')] + array_map([\Drupal::service('date.formatter'), 'formatInterval'], array_combine($options, $options)),
+    ];
+  
+    // Add submit callback.
+    $form['#submit'][] = 'automated_cron_settings_submit';
+  }
+
+
